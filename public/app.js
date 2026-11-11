@@ -3,11 +3,13 @@ const $ = s => document.querySelector(s);
 const form = $('#route-form');
 let token = sessionStorage.getItem('flex-token') || '';
 let routes = [], history = [], chart, timer;
+let demoMode=false, demoRoutes=[], demoHistory=[];
 const money = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v));
 const time = v => new Date(v).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
 const day = v => v.split('-').reverse().join('/');
 function notify(message){ $('#status').textContent=message; $('#status').style.display='block'; clearTimeout(timer); timer=setTimeout(()=>$('#status').style.display='none',7000); }
 async function api(path, options={}) {
+ if(demoMode)return demoApi(path,options);
  const response = await fetch('/api/'+path,{...options,headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json',...options.headers}});
  const data = await response.json();
  if(!response.ok) {
@@ -75,7 +77,7 @@ form.onsubmit=async event=>{
  event.preventDefault();$('#save').disabled=true;$('#form-error').textContent='';
  const data=Object.fromEntries(new FormData(form));data.ativo=form.elements.ativo.checked;
  data.origem=data.origem.trim().toUpperCase();data.destino=data.destino.trim().toUpperCase();
- try{await api('rotas',{method:data.id?'PUT':'POST',body:JSON.stringify(data)});$('#editor').close();await load();notify('Rota salva. Ela será incluída na próxima execução do robô se estiver ativa.');}catch(e){$('#form-error').textContent=e.message;}finally{$('#save').disabled=false;}
+ try{await api('rotas',{method:data.id?'PUT':'POST',body:JSON.stringify(data)});$('#editor').close();await load();notify(demoMode?'Rota salva apenas na demonstração.':'Rota salva. Ela será incluída na próxima execução do robô se estiver ativa.');}catch(e){$('#form-error').textContent=e.message;}finally{$('#save').disabled=false;}
 };
 for(const [field,list] of [['origem','origin-list'],['destino','destination-list']]){
  let debounce, sequence=0;
@@ -86,5 +88,40 @@ for(const [field,list] of [['origem','origin-list'],['destino','destination-list
 $('#new-route').onclick=()=>edit();$('#close').onclick=()=>$('#editor').close();$('#refresh').onclick=load;
 $('#destination').onchange=()=>loadHistory().catch(e=>notify(e.message));$('#days').onchange=$('#destination').onchange;
 $('#login-form').onsubmit=e=>{e.preventDefault();token=$('#token').value.trim();sessionStorage.setItem('flex-token',token);$('#token').value='';load();};
-$('#logout').onclick=()=>{token='';sessionStorage.removeItem('flex-token');$('#dashboard').hidden=true;$('#login').hidden=false;chart?.destroy();chart=null;routes=[];history=[];$('#routes').replaceChildren();};
+$('#logout').onclick=()=>{demoMode=false;$('#demo-banner').hidden=true;token='';sessionStorage.removeItem('flex-token');$('#dashboard').hidden=true;$('#login').hidden=false;chart?.destroy();chart=null;routes=[];history=[];$('#routes').replaceChildren();};
+function demoApi(path,options){
+ const url=new URL(path,'https://demo.local/');
+ if(url.pathname==='/aeroportos')return [];
+ if(url.pathname==='/historico'){
+  const dest=url.searchParams.get('destino');const cutoff=Date.now()-Number(url.searchParams.get('dias')||30)*86400000;
+  return {items:demoHistory.filter(h=>(!dest||h.destino===dest)&&new Date(h.data_consulta).getTime()>=cutoff),limite:10000};
+ }
+ if(options.method==='DELETE'){
+  const id=Number(url.searchParams.get('id'));demoRoutes=demoRoutes.filter(r=>r.id!==id);demoHistory=demoHistory.filter(h=>h.rota_id!==id);return {ok:true};
+ }
+ if(options.method==='POST'||options.method==='PUT'){
+  const data=JSON.parse(options.body);
+  if(!/^[A-Z]{3}$/.test(data.origem)||!/^[A-Z]{3}$/.test(data.destino)||data.origem===data.destino)throw new Error('Escolha códigos IATA distintos com três letras.');
+  const interval=(new Date(data.data_fim)-new Date(data.data_inicio))/86400000;
+  if(!Number.isFinite(interval)||interval<0||interval>30)throw new Error('Escolha um intervalo de até 31 dias.');
+  if(!(Number(data.max_preco_alerta)>0))throw new Error('Informe um teto positivo.');
+  if(options.method==='POST'){data.id=Math.max(0,...demoRoutes.map(r=>r.id))+1;demoRoutes.push(data);}
+  else{data.id=Number(data.id);demoRoutes=demoRoutes.map(r=>r.id===data.id?data:r);}
+  return data;
+ }
+ return structuredClone(demoRoutes);
+}
+$('#demo').onclick=()=>{
+ demoMode=true;
+ const future=days=>new Date(Date.now()+days*86400000).toISOString().slice(0,10);
+ demoRoutes=[
+  {id:1,apelido:'Férias Maceió · Goiânia',origem:'GYN',destino:'MCZ',max_preco_alerta:'950.00',ativo:true,data_inicio:future(30),data_fim:future(36)},
+  {id:2,apelido:'Férias Maceió · Brasília',origem:'BSB',destino:'MCZ',max_preco_alerta:'950.00',ativo:true,data_inicio:future(30),data_fim:future(36)},
+  {id:3,apelido:'Fim de semana em Salvador',origem:'GYN',destino:'SSA',max_preco_alerta:'700.00',ativo:false,data_inicio:future(45),data_fim:future(47)}
+ ];
+ demoHistory=[];
+ demoRoutes.forEach((r,index)=>{for(let n=0;n<14;n++)demoHistory.push({rota_id:r.id,origem:r.origem,destino:r.destino,data_voo:r.data_inicio,preco:String(Math.round(1250-index*100-n*25+Math.sin(n*1.4+index)*65)),data_consulta:new Date(Date.now()-(13-n)*86400000).toISOString()});});
+ demoHistory.sort((a,b)=>new Date(a.data_consulta)-new Date(b.data_consulta));
+ $('#demo-banner').hidden=false;load();
+};
 if(token)load();

@@ -1,6 +1,6 @@
 # Flex · Monitor Flexível de Passagens Aéreas
 
-Painel responsivo em HTML/CSS/JavaScript, APIs Python Serverless na Vercel, PostgreSQL Aiven e cotações Amadeus com alertas Telegram. Não contém preços fictícios nem scraping. Repositório inicial sem layout anterior; interface criada do zero.
+Painel responsivo em HTML/CSS/JavaScript, APIs Python Serverless na Vercel, PostgreSQL Aiven e cotações Amadeus com alertas Telegram. A operação real usa o provedor Amadeus; o modo demonstração usa dados fictícios identificados. Não realiza scraping. Repositório inicial sem layout anterior; interface criada do zero.
 
 ## O que funciona
 
@@ -10,6 +10,10 @@ Painel responsivo em HTML/CSS/JavaScript, APIs Python Serverless na Vercel, Post
 - Gráfico Chart.js com pontos em timestamps reais, tooltip com segundos em Brasília, filtros por destino/período e séries por rota. Clique na legenda para ocultar origens.
 - Robô consulta cada dia do intervalo, salva a menor oferta retornada por execução/rota e alerta quando o valor fica abaixo ou igual ao teto. O gráfico representa o menor preço de uma janela: a data do voo pode mudar entre consultas e aparece no tooltip.
 - GitHub Actions executa a cada seis horas, no minuto 17 UTC, e manualmente. O agendador pode atrasar; em repositórios públicos, workflows agendados podem ser desativados pelo GitHub após 60 dias sem atividade.
+
+## Prévia sem credenciais
+
+Na tela inicial, clique em **Explorar demonstração** para abrir o painel com dados fictícios claramente identificados. É possível experimentar cadastro, duplicação, edição e filtros. Nada é salvo no banco, nenhuma API externa é chamada e nenhum alerta é enviado. Clique em **Sair** para voltar ao acesso real.
 
 ## 1. Banco Aiven
 
